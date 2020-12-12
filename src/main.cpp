@@ -39,8 +39,8 @@
 #define STEERING_TX_CHAR_UUID "347b0032-7635-408b-8918-8ff3949ce592"  //indicate
 
 //Definition of the encoder PINs
-#define CLK 15
-#define DT  4
+#define CLK GPIO_NUM_22
+#define DT  GPIO_NUM_23
 
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
@@ -82,7 +82,7 @@ class MyServerCallbacks: public BLEServerCallbacks {
 float readEncoderAngle(float angle, int lastClkValue, int clk_value, int dt_value) {
 
   if ((lastClkValue == LOW) && (clk_value == HIGH)) {
-    if (digitalRead(DT) == LOW) {
+    if (dt_value == LOW) {
       angle--;
     } else {
       angle++;
@@ -94,15 +94,7 @@ float readEncoderAngle(float angle, int lastClkValue, int clk_value, int dt_valu
 
 void setup() {
  
-  //setup pins for Pot
-  pinMode(18,OUTPUT);
-  pinMode(17, OUTPUT);
-  pinMode(CLK,INPUT);
-  pinMode(DT,INPUT);
-  digitalWrite(18, HIGH);
-  digitalWrite(17, LOW);
-
-  Serial.begin(9600);
+  Serial.begin(115200);
   //Setup BLE
   Serial.println("Creating BLE server...");
   BLEDevice::init("STEERING");
@@ -155,18 +147,19 @@ void setup() {
 void loop() {
   if (deviceConnected) {
     if (auth) {
-      //Connected to Zwift so read the potentiometer and start transmitting the angle
+      //Connected to Zwift so read the encoder and start transmitting the angle
       lastClkValue = clk_value;
-      clk_value = digitalRead(CLK);
-      dt_value = digitalRead(DT);
+      clk_value = gpio_get_level(CLK);
+      dt_value = gpio_get_level(DT);
 
       angle = readEncoderAngle(angle, lastClkValue, clk_value, dt_value);
+      Serial.println(angle);
 
       Serial.print("Transmitting angle: ");
       Serial.println(angle);
       pAngle->setValue(angle);
       pAngle->notify();
-      //delay(50);
+
     } else {
       //Not connected to Zwift so start the connectin process
       pTx->setValue(FF);

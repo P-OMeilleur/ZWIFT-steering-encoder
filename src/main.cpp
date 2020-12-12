@@ -38,7 +38,9 @@
 #define STEERING_RX_CHAR_UUID "347b0031-7635-408b-8918-8ff3949ce592"  //write
 #define STEERING_TX_CHAR_UUID "347b0032-7635-408b-8918-8ff3949ce592"  //indicate
 
-#define POT 32
+//Definition of the encoder PINs
+#define CLK 15
+#define DT  4
 
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
@@ -46,6 +48,7 @@ bool auth = false;
 
 float angle = 20;
 int FF = 0xFF;
+int clk_value = LOW, lastClkValue = LOW, dt_value = LOW;
 uint8_t authChallenge[4] = {0x03, 0x10, 0xff, 0xff};
 uint8_t authSuccess[3] = {0x03, 0x11, 0xff};
 
@@ -76,18 +79,17 @@ class MyServerCallbacks: public BLEServerCallbacks {
     }
 };
 
-float readAngle() {
-  int potVal = analogRead(POT);
-  Serial.println(potVal);
-  if (potVal < 1024) {
-    return -40;
-  } else {
-    if (potVal > 3096) {
-      return 41;
+float readEncoderAngle(float angle, int lastClkValue, int clk_value, int dt_value) {
+
+  if ((lastClkValue == LOW) && (clk_value == HIGH)) {
+    if (digitalRead(DT) == LOW) {
+      angle--;
     } else {
-      return (float)((potVal / 25) - 80);
+      angle++;
     }
-  }
+  } 
+
+  return angle;
 }
 
 void setup() {
@@ -95,11 +97,12 @@ void setup() {
   //setup pins for Pot
   pinMode(18,OUTPUT);
   pinMode(17, OUTPUT);
-  pinMode(POT,INPUT);
+  pinMode(CLK,INPUT);
+  pinMode(DT,INPUT);
   digitalWrite(18, HIGH);
   digitalWrite(17, LOW);
 
-  Serial.begin(115200);
+  Serial.begin(9600);
   //Setup BLE
   Serial.println("Creating BLE server...");
   BLEDevice::init("STEERING");
@@ -153,12 +156,17 @@ void loop() {
   if (deviceConnected) {
     if (auth) {
       //Connected to Zwift so read the potentiometer and start transmitting the angle
-      angle = readAngle();
+      lastClkValue = clk_value;
+      clk_value = digitalRead(CLK);
+      dt_value = digitalRead(DT);
+
+      angle = readEncoderAngle(angle, lastClkValue, clk_value, dt_value);
+
       Serial.print("Transmitting angle: ");
       Serial.println(angle);
       pAngle->setValue(angle);
       pAngle->notify();
-      delay(500);
+      //delay(50);
     } else {
       //Not connected to Zwift so start the connectin process
       pTx->setValue(FF);
